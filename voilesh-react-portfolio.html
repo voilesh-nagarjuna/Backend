@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Voilesh Nagarjuna — Finance Portfolio</title>
+  <meta name="description" content="Project-first finance portfolio for Voilesh Nagarjuna, featuring live analytics, backtesting, and a premium light-toned visual system." />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            sand: '#fbfaf6',
+            pearl: '#f5f2eb',
+            mist: '#ece7dd',
+            sage: '#dce8df',
+            mint: '#e8f3ed',
+            foam: '#f4fbf7',
+            finance: '#6f9f8f',
+            financeDeep: '#4d7d6f',
+            slateWarm: '#645f57',
+            slateInk: '#26231f',
+            goldSoft: '#c9ad65'
+          },
+          fontFamily: {
+            display: ['Cormorant Garamond', 'serif'],
+            body: ['Inter', 'sans-serif']
+          },
+          boxShadow: {
+            soft: '0 10px 30px rgba(66, 62, 52, 0.08)',
+            panel: '0 20px 50px rgba(66, 62, 52, 0.10)'
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Inter', sans-serif;
+      background:
+        radial-gradient(circle at top right, rgba(111,159,143,0.18), transparent 28%),
+        radial-gradient(circle at left 20%, rgba(201,173,101,0.12), transparent 18%),
+        #fbfaf6;
+      color: #26231f;
+    }
+    .glass {
+      background: rgba(251, 250, 246, 0.72);
+      backdrop-filter: blur(16px);
+    }
+    .reveal {
+      opacity: 0;
+      transform: translateY(24px);
+      transition: opacity 700ms ease, transform 700ms ease;
+    }
+    .reveal.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      .reveal, .reveal.visible { opacity: 1; transform: none; transition: none; }
+    }
+  </style>
+</head>
+<body class="bg-sand text-slateInk">
+  <div id="root"></div>
+  <script>
+    const { useEffect, useMemo, useRef, useState } = React;
+
+    function BrandMark() {
+      return React.createElement('svg', {
+        viewBox: '0 0 48 48', className: 'h-9 w-9 text-finance', fill: 'none', stroke: 'currentColor', strokeWidth: '2.2', 'aria-hidden': 'true'
+      },
+        React.createElement('path', { d: 'M10 35 24 10 38 35' }),
+        React.createElement('path', { d: 'M17 35h14' }),
+        React.createElement('circle', { cx: '24', cy: '23', r: '4.5' })
+      );
+    }
+
+    function useReveal() {
+      useEffect(() => {
+        const els = document.querySelectorAll('.reveal');
+        const observer = new IntersectionObserver((entries) => {
+          entries.forEach(entry => {
+            if (entry.isIntersecting) entry.target.classList.add('visible');
+          });
+        }, { threshold: 0.12 });
+        els.forEach(el => observer.observe(el));
+        return () => observer.disconnect();
+      }, []);
+    }
+
+    function LineChart({ canvasRef, className }) {
+      return React.createElement('div', { className: className || 'relative h-72 md:h-80' },
+        React.createElement('canvas', { ref: canvasRef })
+      );
+    }
+
+    function App() {
+      const inflationRef = useRef(null);
+      const backtestRef = useRef(null);
+      const [inflationError, setInflationError] = useState(false);
+      const [backtestError, setBacktestError] = useState(false);
+      const [daysTracked, setDaysTracked] = useState('45');
+      const [metrics, setMetrics] = useState({ sharpe_ratio: '—', max_drawdown: '—', alpha: '—' });
+      const API_BASE = 'https://deshaw-backend-engine.onrender.com';
+      useReveal();
+
+      const palette = useMemo(() => ({
+        finance: '#6f9f8f',
+        financeDeep: '#4d7d6f',
+        goldSoft: '#c9ad65',
+        muted: '#6d675f',
+        grid: 'rgba(38,35,31,0.08)'
+      }), []);
+
+      useEffect(() => {
+        Chart.defaults.font.family = 'Inter, sans-serif';
+        Chart.defaults.color = palette.muted;
+        Chart.defaults.borderColor = palette.grid;
+      }, [palette]);
+
+      useEffect(() => {
+        let chart;
+        async function loadInflation() {
+          try {
+            const res = await fetch(API_BASE + '/api/inflation-index');
+            const data = await res.json();
+            setDaysTracked(String(data.length));
+            const labels = data.map(d => d.date ? d.date.slice(5) : '');
+            chart = new Chart(inflationRef.current, {
+              type: 'line',
+              data: {
+                labels,
+                datasets: [
+                  {
+                    label: 'Personal Wash',
+                    data: data.map(d => d['Personal Wash (Santoor)'] ?? d['Personal Wash'] ?? null),
+                    borderColor: palette.financeDeep,
+                    backgroundColor: 'transparent',
+                    borderWidth: 2.5,
+                    tension: 0.34,
+                    pointRadius: 0
+                  },
+                  {
+                    label: 'Premium Skincare',
+                    data: data.map(d => d['Premium Skincare'] ?? null),
+                    borderColor: palette.goldSoft,
+                    backgroundColor: 'transparent',
+                    borderWidth: 2.3,
+                    tension: 0.34,
+                    pointRadius: 0
+                  },
+                  {
+                    label: 'Home Care',
+                    data: data.map(d => d['Home Care (Giffy)'] ?? d['Home Care'] ?? null),
+                    borderColor: palette.finance,
+                    backgroundColor: 'transparent',
+                    borderWidth: 2.3,
+                    tension: 0.34,
+                    borderDash: [5, 4],
+                    pointRadius: 0
+                  }
+                ]
+              },
+              options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, boxWidth: 8 } } },
+                scales: {
+                  x: { grid: { display: false } },
+                  y: { ticks: { callback: value => '₹' + value } }
+                }
+              }
+            });
+          } catch (e) {
+            setInflationError(true);
+          }
+        }
+        loadInflation();
+        return () => chart && chart.destroy();
+      }, [palette]);
+
+      useEffect(() => {
+        let chart;
+        async function loadBacktest() {
+          try {
+            const res = await fetch(API_BASE + '/api/backtest');
+            const data = await res.json();
+            setMetrics(data.metrics || metrics);
+            chart = new Chart(backtestRef.current, {
+              type: 'line',
+              data: {
+                labels: data.performance_curve.map(d => String(d.day)),
+                datasets: [
+                  {
+                    label: 'Strategy',
+                    data: data.performance_curve.map(d => d.Strategy),
+                    borderColor: palette.financeDeep,
+                    backgroundColor: 'transparent',
+                    borderWidth: 2.7,
+                    tension: 0.3,
+                    pointRadius: 0
+                  },
+                  {
+                    label: 'Benchmark',
+                    data: data.performance_curve.map(d => d.Benchmark),
+                    borderColor: palette.muted,
+                    backgroundColor: 'transparent',
+                    borderWidth: 2.2,
+                    tension: 0.3,
+                    borderDash: [6, 5],
+                    pointRadius: 0
+                  }
+                ]
+              },
+              options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, boxWidth: 8 } } },
+                scales: {
+                  x: { grid: { display: false }, title: { display: true, text: 'Observation day', color: '#26231f' } },
+                  y: { title: { display: true, text: 'Indexed value', color: '#26231f' } }
+                }
+              }
+            });
+          } catch (e) {
+            setBacktestError(true);
+          }
+        }
+        loadBacktest();
+        return () => chart && chart.destroy();
+      }, [palette]);
+
+      const sectionTitle = 'font-display text-4xl md:text-5xl text-slateInk leading-none';
+      const panel = 'rounded-[28px] border border-black/10 bg-white/70 shadow-soft';
+      const softChip = 'inline-flex items-center rounded-full border border-finance/15 bg-foam px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-financeDeep';
+
+      return React.createElement(React.Fragment, null,
+        React.createElement('a', { href: '#main', className: 'sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[999] focus:rounded-full focus:bg-white focus:px-4 focus:py-3' }, 'Skip to content'),
+        React.createElement('header', { className: 'sticky top-0 z-50 border-b border-black/5 glass' },
+          React.createElement('div', { className: 'mx-auto flex min-h-[76px] w-[min(100%-1.5rem,78rem)] items-center justify-between gap-6' },
+            React.createElement('a', { href: '#top', className: 'flex items-center gap-3' }, React.createElement(BrandMark), React.createElement('span', { className: 'text-sm font-semibold tracking-[0.03em]' }, 'Voilesh Nagarjuna')),
+            React.createElement('nav', { className: 'hidden items-center gap-6 text-sm text-slateWarm md:flex', 'aria-label': 'Primary navigation' },
+              React.createElement('a', { href: '#projects', className: 'transition hover:text-slateInk' }, 'Projects'),
+              React.createElement('a', { href: '#experience', className: 'transition hover:text-slateInk' }, 'Experience'),
+              React.createElement('a', { href: '#about', className: 'transition hover:text-slateInk' }, 'About'),
+              React.createElement('a', { href: '#contact', className: 'transition hover:text-slateInk' }, 'Contact')
+            ),
+            React.createElement('a', { href: 'mailto:voilesh28@gmail.com', className: 'rounded-full bg-finance px-5 py-3 text-sm font-semibold text-white transition hover:bg-financeDeep' }, 'Email')
+          )
+        ),
+        React.createElement('main', { id: 'main' },
+          React.createElement('section', { id: 'top', className: 'pb-20 pt-14 md:pb-28 md:pt-24' },
+            React.createElement('div', { className: 'mx-auto grid w-[min(100%-1.5rem,78rem)] gap-8 md:grid-cols-[1.12fr_0.88fr] md:items-end' },
+              React.createElement('div', { className: 'reveal' },
+                React.createElement('span', { className: softChip }, 'Light palette · Finance-first'),
+                React.createElement('h1', { className: 'mt-6 max-w-[10ch] font-display text-6xl leading-[0.92] text-slateInk md:text-8xl' }, 'A brighter kind of finance portfolio.'),
+                React.createElement('p', { className: 'mt-6 max-w-2xl text-base leading-8 text-slateWarm md:text-lg' }, 'You asked for something fancy, project-heavy, and lighter in mood. So this version leans into soft whites, sage, pale mint, and restrained gold accents, which still fit the trust, stability, and growth cues commonly used in finance branding.'),
+                React.createElement('div', { className: 'mt-8 flex flex-col gap-3 sm:flex-row' },
+                  React.createElement('a', { href: '#projects', className: 'inline-flex min-h-[48px] items-center justify-center rounded-full bg-finance px-6 text-sm font-semibold text-white transition hover:bg-financeDeep' }, 'See projects'),
+                  React.createElement('a', { href: API_BASE + '/api/backtest', target: '_blank', rel: 'noopener noreferrer', className: 'inline-flex min-h-[48px] items-center justify-center rounded-full border border-black/10 bg-white/70 px-6 text-sm font-semibold text-slateInk transition hover:bg-white' }, 'Open live backend')
+                ),
+                React.createElement('div', { className: 'mt-10 grid gap-4 sm:grid-cols-3' },
+                  [['3', 'Flagship builds'], [daysTracked, 'Tracked pricing days'], ['Live', 'Cloud charts']].map(([num, label]) =>
+                    React.createElement('div', { key: label, className: 'border-t border-black/10 pt-4' },
+                      React.createElement('div', { className: 'text-3xl font-semibold text-slateInk' }, num),
+                      React.createElement('div', { className: 'mt-1 text-xs uppercase tracking-[0.18em] text-slateWarm' }, label)
+                    )
+                  )
+                )
+              ),
+              React.createElement('aside', { className: 'reveal rounded-[32px] border border-black/10 bg-gradient-to-b from-white to-pearl p-6 shadow-panel md:p-8' },
+                React.createElement('span', { className: softChip }, 'Profile snapshot'),
+                React.createElement('h2', { className: 'mt-5 font-display text-4xl leading-none text-slateInk' }, 'Portfolio first. Résumé second.'),
+                React.createElement('p', { className: 'mt-4 text-sm leading-7 text-slateWarm md:text-base' }, 'Finance undergraduate at CHRIST University with exposure across supply chain, growth strategy, automotive CRM, and research-led analytics. The website is intentionally designed like a compact investment-research studio rather than a conventional CV page.'),
+                React.createElement('div', { className: 'mt-8 grid gap-4 sm:grid-cols-2' },
+                  [
+                    ['Location', 'Bengaluru, India'],
+                    ['Theme', 'Soft finance aesthetic'],
+                    ['Focus', 'Analytics, strategy, pricing'],
+                    ['Contact', 'voilesh28@gmail.com']
+                  ].map(([k, v]) => React.createElement('div', { key: k, className: 'rounded-3xl border border-black/8 bg-white/75 p-4' },
+                    React.createElement('div', { className: 'text-[11px] uppercase tracking-[0.16em] text-slateWarm' }, k),
+                    React.createElement('div', { className: 'mt-2 text-sm font-semibold text-slateInk' }, v)
+                  ))
+                )
+              )
+            )
+          ),
+
+          React.createElement('section', { id: 'projects', className: 'py-16 md:py-24' },
+            React.createElement('div', { className: 'mx-auto w-[min(100%-1.5rem,78rem)]' },
+              React.createElement('div', { className: 'reveal mb-10 grid gap-6 md:grid-cols-[0.7fr_1.3fr]' },
+                React.createElement('div', null,
+                  React.createElement('div', { className: 'text-[11px] uppercase tracking-[0.18em] text-slateWarm' }, 'Selected work'),
+                  React.createElement('h2', { className: sectionTitle + ' mt-3' }, 'Projects with financial presence.')
+                ),
+                React.createElement('p', { className: 'max-w-3xl text-base leading-8 text-slateWarm' }, 'Finance sites often lean on blue, white, and green because those colors signal trust, clarity, stability, and growth. This version keeps that logic, but softens it with lighter shades so the interface feels premium, calm, and aligned with your preference for brighter colors.')
+              ),
+              React.createElement('div', { className: 'grid gap-6 lg:grid-cols-[1.18fr_0.82fr]' },
+                React.createElement('article', { className: panel + ' reveal overflow-hidden bg-gradient-to-b from-white to-mint p-6 md:p-8' },
+                  React.createElement('span', { className: softChip }, 'Live deployment'),
+                  React.createElement('h3', { className: 'mt-5 text-3xl font-semibold leading-tight text-slateInk' }, 'Q-Commerce Pricing Analytics Engine'),
+                  React.createElement('p', { className: 'mt-4 max-w-3xl text-base leading-8 text-slateWarm' }, 'A live FastAPI backend transforms tracked consumer prices into a clean historical series for category-level analysis. Instead of looking like a class assignment, the section is framed as a deployable intelligence layer with real chart surfaces and public endpoints.'),
+                  React.createElement('div', { className: 'mt-5 flex flex-wrap gap-2' },
+                    ['FastAPI', 'SQLite', 'Render', 'Time-series analytics'].map(tag => React.createElement('span', { key: tag, className: 'rounded-full border border-black/10 bg-white/70 px-3 py-2 text-xs font-medium text-slateWarm' }, tag))
+                  ),
+                  React.createElement('div', { className: 'mt-6 rounded-[24px] border border-black/10 bg-white/80 p-4 md:p-5' },
+                    React.createElement('div', { className: 'mb-4 flex flex-wrap items-end justify-between gap-4' },
+                      React.createElement('div', null,
+                        React.createElement('div', { className: 'text-lg font-semibold text-slateInk' }, 'Live category trend'),
+                        React.createElement('div', { className: 'text-sm text-slateWarm' }, 'Fetched from the backend API at runtime.')
+                      ),
+                      React.createElement('a', { href: API_BASE + '/api/inflation-index', target: '_blank', rel: 'noopener noreferrer', className: 'rounded-full border border-finance/15 bg-foam px-4 py-2 text-xs font-semibold uppercase tracking-[0.15em] text-financeDeep' }, 'Open endpoint')
+                    ),
+                    inflationError
+                      ? React.createElement('div', { className: 'grid h-80 place-items-center rounded-[20px] border border-dashed border-black/10 bg-sand px-6 text-center text-sm text-slateWarm' }, 'Live chart could not load right now. The section is already wired to the public endpoint, so updating the final backend URL will restore it.')
+                      : React.createElement(LineChart, { canvasRef: inflationRef, className: 'relative h-80' })
+                  ),
+                  React.createElement('div', { className: 'mt-6 grid gap-4 md:grid-cols-3' },
+                    [['Days tracked', daysTracked], ['Category groups', '3'], ['Portfolio mode', 'Live + historical']].map(([label, value]) =>
+                      React.createElement('div', { key: label, className: 'rounded-3xl border border-black/10 bg-white/75 p-4' },
+                        React.createElement('div', { className: 'text-2xl font-semibold text-slateInk' }, value),
+                        React.createElement('div', { className: 'mt-1 text-xs uppercase tracking-[0.18em] text-slateWarm' }, label)
+                      )
+                    )
+                  )
+                ),
+                React.createElement('div', { className: 'grid gap-6' },
+                  React.createElement('article', { className: panel + ' reveal p-6 md:p-7' },
+                    React.createElement('span', { className: 'inline-flex items-center rounded-full bg-sage px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-financeDeep' }, 'Quant build'),
+                    React.createElement('h3', { className: 'mt-5 text-2xl font-semibold text-slateInk' }, 'Portfolio Backtester'),
+                    React.createElement('p', { className: 'mt-3 text-base leading-8 text-slateWarm' }, 'A strategy-testing layer for cumulative returns, benchmark comparison, and risk-adjusted commentary. The visual treatment keeps it clean and bright rather than dark-terminal themed.'),
+                    React.createElement('div', { className: 'mt-5 grid gap-3 sm:grid-cols-3' },
+                      [
+                        ['Sharpe', metrics.sharpe_ratio],
+                        ['Max drawdown', metrics.max_drawdown],
+                        ['Alpha', metrics.alpha]
+                      ].map(([label, value]) => React.createElement('div', { key: label, className: 'rounded-2xl bg-pearl p-4' },
+                        React.createElement('div', { className: 'text-lg font-semibold text-slateInk' }, value),
+                        React.createElement('div', { className: 'mt-1 text-[11px] uppercase tracking-[0.16em] text-slateWarm' }, label)
+                      ))
+                    )
+                  ),
+                  React.createElement('article', { className: panel + ' reveal p-6 md:p-7' },
+                    React.createElement('span', { className: 'inline-flex items-center rounded-full bg-[#f7efd9] px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-[#8e732d]' }, 'Research stack'),
+                    React.createElement('h3', { className: 'mt-5 text-2xl font-semibold text-slateInk' }, 'SQL Financial Data Warehouse'),
+                    React.createElement('p', { className: 'mt-3 text-base leading-8 text-slateWarm' }, 'A macro research concept around cleaner joins, normalized economic data, and reusable finance tables. It gives the portfolio long-term room to expand beyond one live dashboard.'),
+                    React.createElement('div', { className: 'mt-5 flex flex-wrap gap-2' },
+                      ['Macro research', 'SQL joins', 'Normalization', 'Signal extraction'].map(tag => React.createElement('span', { key: tag, className: 'rounded-full border border-black/10 bg-white/70 px-3 py-2 text-xs font-medium text-slateWarm' }, tag))
+                    )
+                  )
+                )
+              )
+            )
+          ),
+
+          React.createElement('section', { className: 'py-16 md:py-24' },
+            React.createElement('div', { className: 'mx-auto grid w-[min(100%-1.5rem,78rem)] gap-6 lg:grid-cols-[0.98fr_1.02fr]' },
+              React.createElement('div', { className: panel + ' reveal p-6 md:p-8' },
+                React.createElement('div', { className: 'text-[11px] uppercase tracking-[0.18em] text-slateWarm' }, 'Performance view'),
+                React.createElement('h2', { className: 'mt-3 font-display text-4xl leading-none text-slateInk' }, 'Strategy vs benchmark'),
+                React.createElement('p', { className: 'mt-4 max-w-2xl text-base leading-8 text-slateWarm' }, 'This section is the closest thing to a “finance desk” moment on the site. The chart stays light and polished, while still carrying enough seriousness to feel interview-ready.'),
+                React.createElement('div', { className: 'mt-6 rounded-[24px] border border-black/10 bg-white/80 p-4 md:p-5' },
+                  backtestError
+                    ? React.createElement('div', { className: 'grid h-80 place-items-center rounded-[20px] border border-dashed border-black/10 bg-sand px-6 text-center text-sm text-slateWarm' }, 'The backtest chart is ready for live backend data once the final Render URL is confirmed.')
+                    : React.createElement(LineChart, { canvasRef: backtestRef, className: 'relative h-80' })
+                )
+              ),
+              React.createElement('div', { className: panel + ' reveal bg-gradient-to-b from-white to-foam p-6 md:p-8' },
+                React.createElement('div', { className: 'text-[11px] uppercase tracking-[0.18em] text-slateWarm' }, 'Why these colors'),
+                React.createElement('h2', { className: 'mt-3 font-display text-4xl leading-none text-slateInk' }, 'Finance styling, but in lighter tones.'),
+                React.createElement('p', { className: 'mt-4 text-base leading-8 text-slateWarm' }, 'Blue and white are common in finance because they signal trust and clarity, while green often signals growth and money. For your version, I shifted that logic into pale sage, mint-white, warm pearl, and soft gold so it still reads “finance” without becoming heavy or corporate-dark.'),
+                React.createElement('div', { className: 'mt-8 grid gap-4 sm:grid-cols-2' },
+                  [
+                    ['Base', 'Soft white and pearl'],
+                    ['Trust cue', 'Muted finance green'],
+                    ['Growth cue', 'Mint-tinted surfaces'],
+                    ['Premium cue', 'Light gold accent']
+                  ].map(([label, value]) => React.createElement('div', { key: label, className: 'rounded-3xl border border-black/10 bg-white/70 p-4' },
+                    React.createElement('div', { className: 'text-[11px] uppercase tracking-[0.16em] text-slateWarm' }, label),
+                    React.createElement('div', { className: 'mt-2 text-sm font-semibold text-slateInk' }, value)
+                  ))
+                )
+              )
+            )
+          ),
+
+          React.createElement('section', { id: 'experience', className: 'py-16 md:py-24' },
+            React.createElement('div', { className: 'mx-auto w-[min(100%-1.5rem,78rem)]' },
+              React.createElement('div', { className: 'reveal mb-10 grid gap-6 md:grid-cols-[0.7fr_1.3fr]' },
+                React.createElement('div', null,
+                  React.createElement('div', { className: 'text-[11px] uppercase tracking-[0.18em] text-slateWarm' }, 'Operating context'),
+                  React.createElement('h2', { className: sectionTitle + ' mt-3' }, 'Experience beneath the polish.')
+                ),
+                React.createElement('p', { className: 'max-w-3xl text-base leading-8 text-slateWarm' }, 'The résumé content still matters, but it sits after the portfolio. That ordering helps recruiters or interviewers meet your work first, then connect it to real operating exposure.'),
+              ),
+              React.createElement('div', { className: 'grid gap-5' },
+                [
+                  {
+                    role: 'Supply Chain Intern', org: 'Wipro Consumer Care and Lighting', time: 'Mar 2026 — Present · Bengaluru', bullets: [
+                      'Executed quick-commerce diagnostics using time-series logic and category analysis.',
+                      'Estimated stockout-linked unit deficits, weekly revenue loss, and annualized value-at-risk.',
+                      'Studied the relationship between manufacturing delays, distributors, and platform visibility.'
+                    ]
+                  },
+                  {
+                    role: 'Business Growth and Strategy Intern', org: 'A-THON', time: 'Nov 2025 — Jan 2026 · Bengaluru', bullets: [
+                      'Secured B2B tenants to monetize underused assets and strengthen recurring revenue.',
+                      'Managed a 50+ prospect pipeline across lead qualification and consultative selling.',
+                      'Built automations for FAQs, lead capture, and lower support overhead.'
+                    ]
+                  },
+                  {
+                    role: 'Previous internships and leadership', org: 'Wipro · Audi Bengaluru Central · CHRIST University', time: '2024 — 2025', bullets: [
+                      'Supported AI-oriented strategic writing and case-style research work.',
+                      'Handled CRM-linked outreach in a premium automotive setting.',
+                      'Represented a 1,000+ student cohort through structured administrative coordination.'
+                    ]
+                  }
+                ].map(item => React.createElement('article', { key: item.role, className: panel + ' reveal p-6 md:p-7' },
+                  React.createElement('div', { className: 'flex flex-col gap-3 md:flex-row md:items-start md:justify-between' },
+                    React.createElement('div', null,
+                      React.createElement('h3', { className: 'text-2xl font-semibold text-slateInk' }, item.role),
+                      React.createElement('div', { className: 'mt-1 font-medium text-financeDeep' }, item.org)
+                    ),
+                    React.createElement('div', { className: 'text-sm text-slateWarm' }, item.time)
+                  ),
+                  React.createElement('ul', { className: 'mt-5 grid gap-3 text-base leading-8 text-slateWarm' },
+                    item.bullets.map(text => React.createElement('li', { key: text, className: 'relative pl-5 before:absolute before:left-0 before:top-3 before:h-1.5 before:w-1.5 before:rounded-full before:bg-finance' }, text))
+                  )
+                ))
+              )
+            )
+          ),
+
+          React.createElement('section', { id: 'about', className: 'py-16 md:py-24' },
+            React.createElement('div', { className: 'mx-auto grid w-[min(100%-1.5rem,78rem)] gap-6 lg:grid-cols-[0.78fr_1.22fr]' },
+              React.createElement('aside', { className: panel + ' reveal bg-gradient-to-b from-white to-pearl p-6 md:p-8' },
+                React.createElement('div', { className: 'grid aspect-[4/5] place-items-center rounded-[26px] border border-black/10 bg-gradient-to-b from-mint to-white' },
+                  React.createElement('svg', { viewBox: '0 0 80 100', className: 'w-2/5 text-financeDeep', fill: 'none', stroke: 'currentColor', strokeWidth: '2', 'aria-label': 'Portrait placeholder' },
+                    React.createElement('circle', { cx: '40', cy: '28', r: '14' }),
+                    React.createElement('path', { d: 'M16 86c3-18 17-28 24-28s21 10 24 28' }),
+                    React.createElement('path', { d: 'M24 18c3-8 10-12 16-12 8 0 15 4 18 13' })
+                  )
+                ),
+                React.createElement('p', { className: 'mt-6 max-w-[15ch] font-display text-4xl leading-none text-slateInk' }, 'A lighter palette, but still serious.'),
+                React.createElement('p', { className: 'mt-4 text-sm leading-7 text-slateWarm' }, 'You can replace this placeholder with a professional headshot later, and the section will still fit the same visual system.')
+              ),
+              React.createElement('div', { className: panel + ' reveal p-6 md:p-8' },
+                React.createElement('div', { className: 'text-[11px] uppercase tracking-[0.18em] text-slateWarm' }, 'Positioning'),
+                React.createElement('h2', { className: 'mt-3 font-display text-5xl leading-none text-slateInk' }, 'Built around evidence, not generic “finance guy” branding.'),
+                React.createElement('p', { className: 'mt-5 max-w-3xl text-base leading-8 text-slateWarm' }, 'The website keeps your identity grounded in projects, data fluency, and business context. It avoids the heavy navy-and-black look many finance sites use, while still keeping the core color psychology of trust, professionalism, clarity, and growth.'),
+                React.createElement('div', { className: 'mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-4' },
+                  [
+                    ['Certifications', 'AI-900 completed'],
+                    ['In progress', 'FMVA, NISM series'],
+                    ['Portfolio mode', 'Interview-ready'],
+                    ['Visual tone', 'Bright, premium, composed']
+                  ].map(([label, value]) => React.createElement('div', { key: label, className: 'rounded-3xl bg-pearl p-4' },
+                    React.createElement('div', { className: 'text-[11px] uppercase tracking-[0.16em] text-slateWarm' }, label),
+                    React.createElement('div', { className: 'mt-2 text-sm font-semibold text-slateInk' }, value)
+                  ))
+                )
+              )
+            )
+          ),
+
+          React.createElement('section', { id: 'contact', className: 'py-16 md:py-24' },
+            React.createElement('div', { className: 'mx-auto w-[min(100%-1.5rem,78rem)]' },
+              React.createElement('div', { className: panel + ' reveal grid gap-6 bg-gradient-to-r from-white to-foam p-6 md:grid-cols-[1fr_auto] md:items-center md:p-8' },
+                React.createElement('div', null,
+                  React.createElement('div', { className: 'text-[11px] uppercase tracking-[0.18em] text-slateWarm' }, 'Contact'),
+                  React.createElement('h2', { className: 'mt-3 font-display text-5xl leading-none text-slateInk' }, 'Open to finance, analytics, and strategy conversations.'),
+                  React.createElement('p', { className: 'mt-4 max-w-3xl text-base leading-8 text-slateWarm' }, 'This last section stays simple on purpose. The site already does the heavy visual work earlier, so the close is clean, direct, and professional.')
+                ),
+                React.createElement('div', { className: 'flex flex-col gap-3 sm:flex-row md:flex-col' },
+                  React.createElement('a', { href: 'mailto:voilesh28@gmail.com', className: 'inline-flex min-h-[48px] items-center justify-center rounded-full bg-finance px-6 text-sm font-semibold text-white transition hover:bg-financeDeep' }, 'Email me'),
+                  React.createElement('a', { href: 'https://www.linkedin.com/in/voileshnagarjuna/', target: '_blank', rel: 'noopener noreferrer', className: 'inline-flex min-h-[48px] items-center justify-center rounded-full border border-black/10 bg-white/70 px-6 text-sm font-semibold text-slateInk transition hover:bg-white' }, 'LinkedIn')
+                )
+              )
+            )
+          )
+        ),
+        React.createElement('footer', { className: 'pb-10 pt-2 text-sm text-slateWarm' },
+          React.createElement('div', { className: 'mx-auto flex w-[min(100%-1.5rem,78rem)] flex-col gap-2 border-t border-black/5 pt-6 sm:flex-row sm:items-center sm:justify-between' },
+            React.createElement('span', null, 'Voilesh Nagarjuna — React portfolio concept'),
+            React.createElement('span', null, 'Light finance palette · Project-first layout')
+          )
+        )
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App));
+  </script>
+</body>
+</html>
